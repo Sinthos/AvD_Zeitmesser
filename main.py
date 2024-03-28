@@ -87,6 +87,7 @@ class LightBarrierApp:
 
             workbook.close()
 
+
 if __name__ == '__main__':
     root = tk.Tk()
     app = LightBarrierApp(root)
