@@ -5,7 +5,6 @@ from datetime import datetime
 from collections import deque
 import xlsxwriter
 
-#Notiz
 class LightBarrierApp:
     def __init__(self, root):
         self.root = root
