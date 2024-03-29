@@ -5,7 +5,6 @@ from datetime import datetime
 from collections import deque
 import xlsxwriter
 
-
 class LightBarrierApp:
     def __init__(self, root):
         self.root = root
@@ -15,9 +14,7 @@ class LightBarrierApp:
         self.timer_queue = deque()
 
         # Tabelle erstellen
-        self.tree = ttk.Treeview(root,
-                                 columns=('Messungsname', 'Startzeit', 'Endzeit', 'Dauer', 'Strafzeit', 'Ergebnis'),
-                                 show='headings')
+        self.tree = ttk.Treeview(root, columns=('Messungsname', 'Startzeit', 'Endzeit', 'Dauer', 'Strafzeit', 'Ergebnis'), show='headings')
         self.tree.heading('Messungsname', text='Messungsname')
         self.tree.heading('Startzeit', text='Startzeit')
         self.tree.heading('Endzeit', text='Endzeit')
@@ -43,6 +40,10 @@ class LightBarrierApp:
         self.export_button = tk.Button(root, text="Als Excel exportieren", command=self.export_to_excel)
         self.export_button.pack(side=tk.RIGHT, padx=10, pady=10)
 
+        # Herstellerhinweis
+        self.manufacturer_label = tk.Label(root, text="Hersteller: Maximilian Schaaf-Tempel")
+        self.manufacturer_label.pack(side=tk.BOTTOM, fill=tk.X)
+
         # Timer aktualisieren
         self.update_timer()
 
@@ -61,14 +62,11 @@ class LightBarrierApp:
                 duration = (end_time - start_time).total_seconds()
                 strafzeit = float(self.tree.item(item_id, 'values')[4])
                 ergebnis = duration + strafzeit
-                self.tree.item(item_id, values=(
-                'Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit, '{:.2f} s'.format(ergebnis)))
+                self.tree.item(item_id, values=('Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit, '{:.2f} s'.format(ergebnis)))
                 del self.timer_items[item_id]
 
     def on_item_double_click(self, event):
-        # Spalten-ID zu Index-Mapping
         column_id_to_index = {'#1': 0, '#2': 1, '#3': 2, '#4': 3, '#5': 4}
-
         column = self.tree.identify_column(event.x)
         if column in column_id_to_index:
             item_id = self.tree.identify_row(event.y)
@@ -82,8 +80,6 @@ class LightBarrierApp:
     def update_item(self, entry, item_id, column_index):
         values = list(self.tree.item(item_id, 'values'))
         values[column_index] = entry.get()
-
-        # Berechne das Ergebnis neu, wenn die Strafzeit aktualisiert wird
         if column_index == 4:  # Strafzeit-Spalte
             try:
                 strafzeit = float(entry.get())
@@ -91,7 +87,6 @@ class LightBarrierApp:
                 values[5] = '{:.2f} s'.format(duration + strafzeit)
             except ValueError:
                 values[5] = 'Fehler'
-
         self.tree.item(item_id, values=values)
         entry.destroy()
 
@@ -99,8 +94,7 @@ class LightBarrierApp:
         now = datetime.now()
         for item_id, (start_time, _) in list(self.timer_items.items()):
             duration = (now - start_time).total_seconds()
-            self.tree.item(item_id, values=(
-            'Unbenannt', start_time, 'Läuft...', '{:.2f} s'.format(duration), '0', '{:.2f} s'.format(duration)))
+            self.tree.item(item_id, values=('Unbenannt', start_time, 'Läuft...', '{:.2f} s'.format(duration), '0', '{:.2f} s'.format(duration)))
         self.root.after(100, self.update_timer)
 
     def reset_timers(self):
