@@ -1,9 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import deque
 import xlsxwriter
+import serial
+import time
 
 class LightBarrierApp:
     def __init__(self, root):
@@ -32,6 +34,10 @@ class LightBarrierApp:
         self.end_button = tk.Button(root, text="Endzeit festlegen", command=self.set_end_time)
         self.end_button.pack(side=tk.RIGHT, padx=10)
 
+        # Timer für Buttons
+        self.start_time_blocked_until = datetime.now()
+        self.end_time_blocked_until = datetime.now()
+
         # Reset-Button
         self.reset_button = tk.Button(root, text="Alles zurücksetzen", command=self.reset_timers)
         self.reset_button.pack(side=tk.LEFT, padx=10, pady=10)
@@ -44,26 +50,64 @@ class LightBarrierApp:
         self.manufacturer_label = tk.Label(root, text="Hersteller: Maximilian Schaaf-Tempel")
         self.manufacturer_label.pack(side=tk.BOTTOM, fill=tk.X)
 
+        # Serielle Kommunikation initialisieren
+        try:
+            with open("selected_port.txt", "r") as file:
+                selected_port = file.readline().strip()
+                self.init_serial(selected_port)
+        except Exception as e:
+            print("Fehler beim Lesen des Ports:", e)
+
         # Timer aktualisieren
         self.update_timer()
 
+        # Serielle Daten regelmäßig überprüfen
+        self.check_serial()
+
+    def init_serial(self, port):
+        try:
+            self.ser = serial.Serial(port, 9600, timeout=1)
+            time.sleep(2)  # Warte auf die Initialisierung der Verbindung
+        except Exception as e:
+            print("Fehler beim Öffnen des seriellen Ports:", e)
+
+    def check_serial(self):
+        if self.ser.in_waiting > 0:
+            line = self.ser.readline().decode('utf-8').rstrip()
+            if line == "Signal auf A1 erkannt":
+                self.set_start_time()
+            elif line == "Signal auf A2 erkannt":
+                self.set_end_time()
+
+        self.root.after(100, self.check_serial)
+
     def set_start_time(self):
-        start_time = datetime.now()
-        item_id = self.tree.insert('', 'end', values=('Unbenannt', start_time, 'Läuft...', '0.00 s', '0', '0.00 s'))
-        self.timer_items[item_id] = (start_time, 'Läuft...')
-        self.timer_queue.append(item_id)
+        now = datetime.now()
+        if now >= self.start_time_blocked_until:
+            start_time = now
+            item_id = self.tree.insert('', 'end', values=('Unbenannt', start_time, 'Läuft...', '0.00 s', '0', '0.00 s'))
+            self.timer_items[item_id] = (start_time, 'Läuft...')
+            self.timer_queue.append(item_id)
+            self.start_time_blocked_until = now + timedelta(seconds=10)
+            self.start_button["state"] = "disabled"
+            self.root.after(10000, lambda: self.start_button.config(state="normal"))
 
     def set_end_time(self):
-        if self.timer_queue:
-            item_id = self.timer_queue.popleft()
-            if item_id in self.timer_items:
-                end_time = datetime.now()
-                start_time, _ = self.timer_items[item_id]
-                duration = (end_time - start_time).total_seconds()
-                strafzeit = float(self.tree.item(item_id, 'values')[4])
-                ergebnis = duration + strafzeit
-                self.tree.item(item_id, values=('Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit, '{:.2f} s'.format(ergebnis)))
-                del self.timer_items[item_id]
+        now = datetime.now()
+        if now >= self.end_time_blocked_until:
+            if self.timer_queue:
+                item_id = self.timer_queue.popleft()
+                if item_id in self.timer_items:
+                    end_time = now
+                    start_time, _ = self.timer_items[item_id]
+                    duration = (end_time - start_time).total_seconds()
+                    strafzeit = float(self.tree.item(item_id, 'values')[4])
+                    ergebnis = duration + strafzeit
+                    self.tree.item(item_id, values=('Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit, '{:.2f} s'.format(ergebnis)))
+                    del self.timer_items[item_id]
+            self.end_time_blocked_until = now + timedelta(seconds=10)
+            self.end_button["state"] = "disabled"
+            self.root.after(10000, lambda: self.end_button.config(state="normal"))
 
     def on_item_double_click(self, event):
         column_id_to_index = {'#1': 0, '#2': 1, '#3': 2, '#4': 3, '#5': 4}
@@ -129,7 +173,6 @@ class LightBarrierApp:
                 worksheet.write(i, 5, ergebnis)
 
             workbook.close()
-
 
 if __name__ == '__main__':
     root = tk.Tk()
