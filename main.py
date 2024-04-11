@@ -1,11 +1,13 @@
-import tkinter as tk
-from tkinter import ttk
-from tkinter import filedialog
-from datetime import datetime, timedelta
-from collections import deque
-import xlsxwriter
-import serial
 import time
+import tkinter as tk
+from collections import deque
+from datetime import datetime, timedelta
+from tkinter import filedialog
+from tkinter import ttk
+
+import serial
+import xlsxwriter
+
 
 class LightBarrierApp:
     def __init__(self, root):
@@ -16,7 +18,9 @@ class LightBarrierApp:
         self.timer_queue = deque()
 
         # Tabelle erstellen
-        self.tree = ttk.Treeview(root, columns=('Messungsname', 'Startzeit', 'Endzeit', 'Dauer', 'Strafzeit', 'Ergebnis'), show='headings')
+        self.tree = ttk.Treeview(root,
+                                 columns=('Messungsname', 'Startzeit', 'Endzeit', 'Dauer', 'Strafzeit', 'Ergebnis'),
+                                 show='headings')
         self.tree.heading('Messungsname', text='Messungsname')
         self.tree.heading('Startzeit', text='Startzeit')
         self.tree.heading('Endzeit', text='Endzeit')
@@ -103,7 +107,9 @@ class LightBarrierApp:
                     duration = (end_time - start_time).total_seconds()
                     strafzeit = float(self.tree.item(item_id, 'values')[4])
                     ergebnis = duration + strafzeit
-                    self.tree.item(item_id, values=('Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit, '{:.2f} s'.format(ergebnis)))
+                    self.tree.item(item_id, values=(
+                    'Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit,
+                    '{:.2f} s'.format(ergebnis)))
                     del self.timer_items[item_id]
             self.end_time_blocked_until = now + timedelta(seconds=10)
             self.end_button["state"] = "disabled"
@@ -138,7 +144,8 @@ class LightBarrierApp:
         now = datetime.now()
         for item_id, (start_time, _) in list(self.timer_items.items()):
             duration = (now - start_time).total_seconds()
-            self.tree.item(item_id, values=('Unbenannt', start_time, 'Läuft...', '{:.2f} s'.format(duration), '0', '{:.2f} s'.format(duration)))
+            self.tree.item(item_id, values=(
+            'Unbenannt', start_time, 'Läuft...', '{:.2f} s'.format(duration), '0', '{:.2f} s'.format(duration)))
         self.root.after(100, self.update_timer)
 
     def reset_timers(self):
@@ -173,6 +180,7 @@ class LightBarrierApp:
                 worksheet.write(i, 5, ergebnis)
 
             workbook.close()
+
 
 if __name__ == '__main__':
     root = tk.Tk()
