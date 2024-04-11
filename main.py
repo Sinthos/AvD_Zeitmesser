@@ -92,9 +92,9 @@ class LightBarrierApp:
             item_id = self.tree.insert('', 'end', values=('Unbenannt', start_time, 'Läuft...', '0.00 s', '0', '0.00 s'))
             self.timer_items[item_id] = (start_time, 'Läuft...')
             self.timer_queue.append(item_id)
-            self.start_time_blocked_until = now + timedelta(seconds=10)
+            self.start_time_blocked_until = now + timedelta(seconds=30)
             self.start_button["state"] = "disabled"
-            self.root.after(10000, lambda: self.start_button.config(state="normal"))
+            self.root.after(30000, lambda: self.start_button.config(state="normal"))
 
     def set_end_time(self):
         now = datetime.now()
@@ -111,9 +111,9 @@ class LightBarrierApp:
                     'Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit,
                     '{:.2f} s'.format(ergebnis)))
                     del self.timer_items[item_id]
-            self.end_time_blocked_until = now + timedelta(seconds=10)
+            self.end_time_blocked_until = now + timedelta(seconds=5)
             self.end_button["state"] = "disabled"
-            self.root.after(10000, lambda: self.end_button.config(state="normal"))
+            self.root.after(5000, lambda: self.end_button.config(state="normal"))
 
     def on_item_double_click(self, event):
         column_id_to_index = {'#1': 0, '#2': 1, '#3': 2, '#4': 3, '#5': 4}
