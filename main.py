@@ -2,25 +2,31 @@ import time
 import tkinter as tk
 from collections import deque
 from datetime import datetime, timedelta
-from tkinter import filedialog
+from tkinter import filedialog, simpledialog
 from tkinter import ttk
-
 import serial
 import xlsxwriter
-
 
 class LightBarrierApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Lichtschranken-Zeiterfassung")
 
+        # Startverzögerung, standardmäßig auf 5 Sekunden gesetzt
+        self.start_delay = 5
+
+        # Menü hinzufügen
+        menubar = tk.Menu(root)
+        root.config(menu=menubar)
+        settings_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Einstellungen", menu=settings_menu)
+        settings_menu.add_command(label="Startverzögerung setzen", command=self.set_start_delay)
+
         self.timer_items = {}
         self.timer_queue = deque()
 
         # Tabelle erstellen
-        self.tree = ttk.Treeview(root,
-                                 columns=('Messungsname', 'Startzeit', 'Endzeit', 'Dauer', 'Strafzeit', 'Ergebnis'),
-                                 show='headings')
+        self.tree = ttk.Treeview(root, columns=('Messungsname', 'Startzeit', 'Endzeit', 'Dauer', 'Strafzeit', 'Ergebnis'), show='headings')
         self.tree.heading('Messungsname', text='Messungsname')
         self.tree.heading('Startzeit', text='Startzeit')
         self.tree.heading('Endzeit', text='Endzeit')
@@ -38,9 +44,9 @@ class LightBarrierApp:
         self.end_button = tk.Button(root, text="Endzeit festlegen", command=self.set_end_time)
         self.end_button.pack(side=tk.RIGHT, padx=10)
 
-        # Timer für Buttons
-        self.start_time_blocked_until = datetime.now()
-        self.end_time_blocked_until = datetime.now()
+        # Startverzögerung Button
+        self.delay_button = tk.Button(root, text="Startverzögerung anpassen", command=self.set_start_delay)
+        self.delay_button.pack(side=tk.LEFT, padx=10)
 
         # Reset-Button
         self.reset_button = tk.Button(root, text="Alles zurücksetzen", command=self.reset_timers)
@@ -54,36 +60,37 @@ class LightBarrierApp:
         self.manufacturer_label = tk.Label(root, text="Hersteller: Maximilian Schaaf-Tempel")
         self.manufacturer_label.pack(side=tk.BOTTOM, fill=tk.X)
 
-        # Serielle Kommunikation initialisieren
-        try:
-            with open("selected_port.txt", "r") as file:
-                selected_port = file.readline().strip()
-                self.init_serial(selected_port)
-        except Exception as e:
-            print("Fehler beim Lesen des Ports:", e)
+        # Timer und serielle Kommunikation initialisieren
+        self.start_time_blocked_until = datetime.now()
+        self.end_time_blocked_until = datetime.now()
+        self.init_serial()
 
         # Timer aktualisieren
         self.update_timer()
 
-        # Serielle Daten regelmäßig überprüfen
-        self.check_serial()
-
-    def init_serial(self, port):
+    def init_serial(self):
         try:
-            self.ser = serial.Serial(port, 9600, timeout=1)
-            time.sleep(2)  # Warte auf die Initialisierung der Verbindung
+            with open("selected_port.txt", "r") as file:
+                selected_port = file.readline().strip()
+                self.ser = serial.Serial(selected_port, 9600, timeout=1)
+                time.sleep(2)  # Warte auf die Initialisierung der Verbindung
         except Exception as e:
             print("Fehler beim Öffnen des seriellen Ports:", e)
+        self.check_serial()  # Starten Sie die regelmäßige Überprüfung des seriellen Ports
 
     def check_serial(self):
-        if self.ser.in_waiting > 0:
+        if hasattr(self, 'ser') and self.ser.in_waiting > 0:
             line = self.ser.readline().decode('utf-8').rstrip()
             if line == "Signal auf A1 erkannt":
                 self.set_start_time()
             elif line == "Signal auf A2 erkannt":
                 self.set_end_time()
+        self.root.after(100, self.check_serial)  # Planen Sie die nächste Überprüfung
 
-        self.root.after(100, self.check_serial)
+    def set_start_delay(self):
+        delay = simpledialog.askinteger("Startverzögerung", "Startverzögerung in Sekunden:", initialvalue=self.start_delay, minvalue=1, maxvalue=60)
+        if delay is not None:
+            self.start_delay = delay
 
     def set_start_time(self):
         now = datetime.now()
@@ -92,9 +99,9 @@ class LightBarrierApp:
             item_id = self.tree.insert('', 'end', values=('Unbenannt', start_time, 'Läuft...', '0.00 s', '0', '0.00 s'))
             self.timer_items[item_id] = (start_time, 'Läuft...')
             self.timer_queue.append(item_id)
-            self.start_time_blocked_until = now + timedelta(seconds=30)
+            self.start_time_blocked_until = now + timedelta(seconds=self.start_delay)
             self.start_button["state"] = "disabled"
-            self.root.after(30000, lambda: self.start_button.config(state="normal"))
+            self.root.after(self.start_delay * 1000, lambda: self.start_button.config(state="normal"))
 
     def set_end_time(self):
         now = datetime.now()
@@ -107,9 +114,7 @@ class LightBarrierApp:
                     duration = (end_time - start_time).total_seconds()
                     strafzeit = float(self.tree.item(item_id, 'values')[4])
                     ergebnis = duration + strafzeit
-                    self.tree.item(item_id, values=(
-                    'Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit,
-                    '{:.2f} s'.format(ergebnis)))
+                    self.tree.item(item_id, values=('Unbenannt', start_time, end_time, '{:.2f} s'.format(duration), strafzeit, '{:.2f} s'.format(ergebnis)))
                     del self.timer_items[item_id]
             self.end_time_blocked_until = now + timedelta(seconds=5)
             self.end_button["state"] = "disabled"
@@ -144,8 +149,7 @@ class LightBarrierApp:
         now = datetime.now()
         for item_id, (start_time, _) in list(self.timer_items.items()):
             duration = (now - start_time).total_seconds()
-            self.tree.item(item_id, values=(
-            'Unbenannt', start_time, 'Läuft...', '{:.2f} s'.format(duration), '0', '{:.2f} s'.format(duration)))
+            self.tree.item(item_id, values=('Unbenannt', start_time, 'Läuft...', '{:.2f} s'.format(duration), '0', '{:.2f} s'.format(duration)))
         self.root.after(100, self.update_timer)
 
     def reset_timers(self):
@@ -180,7 +184,6 @@ class LightBarrierApp:
                 worksheet.write(i, 5, ergebnis)
 
             workbook.close()
-
 
 if __name__ == '__main__':
     root = tk.Tk()
